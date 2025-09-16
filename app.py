@@ -4,11 +4,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="LLM Cost & Latency Tracker (Mock)", page_icon="🧮", layout="wide")
+st.set_page_config(
+    page_title="LLM Cost & Latency Tracker (Mock)",
+    page_icon="🧮",
+    layout="wide"
+)
 
-# -------------------------
-# MOCK MODEL CATALOG (fictional numbers!)
-# -------------------------
+# ---------------------
+# Model Setup - Note: just mock data, nothing real here
+# ---------------------
 MODELS = {
     "GPT-4o-mini (mock)": {"in_per_1k": 0.15, "out_per_1k": 0.60, "base_latency_ms": 350},
     "GPT-4o (mock)": {"in_per_1k": 5.00, "out_per_1k": 15.00, "base_latency_ms": 800},
@@ -17,181 +21,184 @@ MODELS = {
     "Gemini Pro (mock)": {"in_per_1k": 0.50, "out_per_1k": 1.50, "base_latency_ms": 450},
 }
 
-# -------------------------
-# SIDEBAR CONTROLS
-# -------------------------
+# ---------------------
+# Sidebar Sliders - pick your poison
+# ---------------------
 with st.sidebar:
     st.title("⚙️ Settings")
-    model_name = st.selectbox("Model", list(MODELS.keys()))
-    rpm = st.slider("Requests per minute", 1, 600, 60, help="How many requests you send per minute.")
-    avg_in_tokens = st.slider("Avg input tokens / request", 1, 8000, 1000)
-    avg_out_tokens = st.slider("Avg output tokens / request", 1, 8000, 500)
-    hours_per_day = st.slider("Hours active per day", 1, 24, 8)
-    jitter_pct = st.slider("Latency jitter ± (%)", 0, 200, 25, help="Random variation around base latency.")
-    sample_points = st.slider("Simulation samples", 50, 1000, 200)
-
+    
+    model_choice = st.selectbox("Model", list(MODELS.keys()))
+    rpm = st.slider("Requests per minute", 1, 600, 60)
+    in_tok = st.slider("Avg input tokens / request", 1, 8000, 1000)
+    out_tok = st.slider("Avg output tokens / request", 1, 8000, 500)
+    hours = st.slider("Hours active per day", 1, 24, 8)
+    jitter = st.slider("Latency jitter ± (%)", 0, 200, 25)
+    samples = st.slider("Simulation samples", 50, 1000, 200)
+    
     st.markdown("---")
-    st.caption("⚠️ All numbers are **MOCK/SIMULATED** for demo purposes only!")
+    st.caption("⚠️ Just playing with numbers — nothing here is real!")
 
-cfg = MODELS[model_name]
+model = MODELS[model_choice]
 
-# -------------------------
-# COST CALCULATIONS (mock)
-# -------------------------
-cost_per_req = (avg_in_tokens / 1000.0) * cfg["in_per_1k"] + (avg_out_tokens / 1000.0) * cfg["out_per_1k"]
-cost_per_min = rpm * cost_per_req
-cost_per_hour = cost_per_min * 60
-cost_per_day = cost_per_hour * hours_per_day
-cost_per_30d = cost_per_day * 30
+# ---------------------
+# Cost math — a bit simplistic, but fine for mock
+# ---------------------
+req_cost = (in_tok / 1000) * model["in_per_1k"] + (out_tok / 1000) * model["out_per_1k"]
+cost_min = rpm * req_cost
+cost_hour = cost_min * 60
+cost_day = cost_hour * hours
+cost_month = cost_day * 30  # just assuming a month is 30 days
 
-# -------------------------
-# LATENCY SIMULATION (mock)
-# -------------------------
+# ---------------------
+# Latency simulation — using normal distribution plus some chaos
+# ---------------------
 np.random.seed(42)
-base = cfg["base_latency_ms"]
-jitter = jitter_pct / 100.0
 
-# Generate latencies with normal distribution + jitter
-latencies = np.random.normal(loc=base, scale=max(5, base * 0.15 * (1 + jitter)), size=sample_points)
-latencies = np.clip(latencies, 10, None)  # minimum 10ms
+base_latency = model["base_latency_ms"]
+jitter_amount = jitter / 100
 
-# Add queue pressure effect (higher RPM = more tail latency)
-tail_boost = np.log1p(rpm / 60.0)  # logarithmic scaling
-latencies = latencies * (1 + 0.3 * tail_boost)
+latencies = np.random.normal(
+    loc=base_latency,
+    scale=max(5, base_latency * 0.15 * (1 + jitter_amount)),
+    size=samples
+)
+latencies = np.clip(latencies, 10, None)  # let’s not go below 10ms
 
-# Add some realistic spikes (10% of requests have 2-5x latency)
-spike_indices = np.random.choice(sample_points, int(sample_points * 0.1), replace=False)
-latencies[spike_indices] *= np.random.uniform(2, 5, len(spike_indices))
+# Add pressure multiplier for high load situations
+rpm_effect = np.log1p(rpm / 60)
+latencies *= (1 + 0.3 * rpm_effect)
 
-# Build simulation dataframe
+# Inject random latency spikes for realism
+spikes = np.random.choice(samples, int(samples * 0.1), replace=False)
+latencies[spikes] *= np.random.uniform(2, 5, len(spikes))
+
+# ---------------------
+# DataFrame for simulation output
+# ---------------------
 df = pd.DataFrame({
-    "request_id": np.arange(1, sample_points + 1),
+    "request_id": np.arange(1, samples + 1),
     "latency_ms": latencies,
-    "in_tokens": np.random.normal(avg_in_tokens, max(10, avg_in_tokens*0.15), sample_points).clip(1),
-    "out_tokens": np.random.normal(avg_out_tokens, max(10, avg_out_tokens*0.15), sample_points).clip(1),
+    "in_tokens": np.random.normal(in_tok, max(10, in_tok * 0.15), samples).clip(1),
+    "out_tokens": np.random.normal(out_tok, max(10, out_tok * 0.15), samples).clip(1),
 })
-df["cost_usd"] = ((df["in_tokens"]/1000.0) * cfg["in_per_1k"] +
-                  (df["out_tokens"]/1000.0) * cfg["out_per_1k"])
 
-# Cumulative cost over simulated day
-minutes = hours_per_day * 60
-t = pd.date_range(datetime.now().replace(hour=9, minute=0, second=0), periods=minutes, freq="min")
-per_min_cost = np.full(minutes, cost_per_min)
-# Add some realistic variation throughout the day
-daily_pattern = 0.5 + 0.5 * np.sin(np.linspace(0, 2*np.pi, minutes))  # sine wave pattern
-per_min_cost = per_min_cost * daily_pattern
-cum_cost = np.cumsum(per_min_cost)
-cost_series = pd.DataFrame({"time": t, "cumulative_cost_usd": cum_cost})
+df["cost_usd"] = (df["in_tokens"] / 1000 * model["in_per_1k"] +
+                  df["out_tokens"] / 1000 * model["out_per_1k"])
 
-# -------------------------
-# MAIN APP LAYOUT
-# -------------------------
+# ---------------------
+# Time-based cost series — kinda synthetic but shows trends
+# ---------------------
+minutes = hours * 60
+time_series = pd.date_range(
+    datetime.now().replace(hour=9, minute=0, second=0), periods=minutes, freq="min"
+)
+
+min_costs = np.full(minutes, cost_min)
+daily_wave = 0.5 + 0.5 * np.sin(np.linspace(0, 2 * np.pi, minutes))
+min_costs *= daily_wave
+cum_cost = np.cumsum(min_costs)
+
+cost_df = pd.DataFrame({
+    "time": time_series,
+    "cumulative_cost_usd": cum_cost
+})
+
+# ---------------------
+# UI Layout
+# ---------------------
 st.title("🧮 LLM Cost & Latency Tracker")
-st.markdown("### Interactive **MOCK** dashboard to explore cost and latency trade-offs")
+st.markdown("### Simulated dashboard — play around to see the cost/latency effects")
 st.markdown("---")
 
-# Top metrics row
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("💰 Cost/Request", f"${cost_per_req:.4f}")
-with col2:
-    st.metric("📅 Daily Cost", f"${cost_per_day:.2f}")
-with col3:
-    st.metric("📈 30-Day Cost", f"${cost_per_30d:,.0f}")
-with col4:
-    st.metric("⚡ Avg Latency", f"{df['latency_ms'].mean():.0f} ms")
+# Main metrics
+col_a, col_b, col_c, col_d = st.columns(4)
+col_a.metric("💰 Cost/Request", f"${req_cost:.4f}")
+col_b.metric("📅 Daily Cost", f"${cost_day:.2f}")
+col_c.metric("📈 30-Day Cost", f"${cost_month:,.0f}")
+col_d.metric("⚡ Avg Latency", f"{df['latency_ms'].mean():.0f} ms")
 
-st.caption(f"**{model_name}** • Input: ${cfg['in_per_1k']}/1k tokens • Output: ${cfg['out_per_1k']}/1k tokens • Base: {cfg['base_latency_ms']}ms")
+st.caption(f"**{model_choice}** • ${model['in_per_1k']}/1k in • ${model['out_per_1k']}/1k out • Base: {model['base_latency_ms']}ms")
 
-# -------------------------
-# CHARTS AND DATA TABS
-# -------------------------
+# ---------------------
+# Tabs — Cost, Latency, Stats, Raw Data
+# ---------------------
 tab1, tab2, tab3, tab4 = st.tabs(["📈 Cost Projection", "⏱️ Latency Analysis", "📊 Performance Stats", "🔢 Raw Data"])
 
 with tab1:
-    st.subheader("💸 Cumulative Cost Throughout Day")
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.plot(cost_series["time"], cost_series["cumulative_cost_usd"], color='#1f77b4', linewidth=2)
-    ax1.fill_between(cost_series["time"], cost_series["cumulative_cost_usd"], alpha=0.3)
-    ax1.set_xlabel("Time")
-    ax1.set_ylabel("Cumulative Cost (USD)")
-    ax1.set_title("Projected Daily Spending (Mock)")
-    ax1.grid(True, alpha=0.3)
-    fig1.autofmt_xdate()
-    plt.tight_layout()
-    st.pyplot(fig1, clear_figure=True)
+    st.subheader("Cumulative Cost Over the Day (Simulated)")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(cost_df["time"], cost_df["cumulative_cost_usd"], color="steelblue")
+    ax.fill_between(cost_df["time"], cost_df["cumulative_cost_usd"], alpha=0.2)
+    ax.set_title("Estimated Daily Spend")
+    ax.set_ylabel("USD")
+    ax.set_xlabel("Time")
+    ax.grid(True, linestyle="--", alpha=0.3)
+    fig.autofmt_xdate()
+    st.pyplot(fig)
     
-    st.info(f"💡 **Insight**: At {rpm} RPM for {hours_per_day}h, you'd spend ~${cost_per_day:.2f}/day")
+    st.info(f"💡 If you ran this for {hours} hours/day at {rpm} RPM, you'd spend about ${cost_day:.2f}/day")
 
 with tab2:
-    st.subheader("🚀 Latency Distribution & Performance")
+    st.subheader("Latency Simulation (MS)")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
+    c1, c2 = st.columns(2)
+    with c1:
         fig2, ax2 = plt.subplots(figsize=(8, 5))
-        ax2.hist(df["latency_ms"], bins=25, alpha=0.7, color='orange', edgecolor='black')
-        ax2.axvline(df["latency_ms"].mean(), color='red', linestyle='--', label=f'Mean: {df["latency_ms"].mean():.0f}ms')
-        ax2.axvline(df["latency_ms"].quantile(0.95), color='green', linestyle='--', label=f'P95: {df["latency_ms"].quantile(0.95):.0f}ms')
-        ax2.set_xlabel("Latency (ms)")
+        ax2.hist(df["latency_ms"], bins=30, color='orange', edgecolor='black', alpha=0.8)
+        ax2.axvline(df["latency_ms"].mean(), linestyle='--', color='red', label="Mean")
+        ax2.axvline(df["latency_ms"].quantile(0.95), linestyle='--', color='green', label="P95")
+        ax2.set_title("Latency Spread")
+        ax2.set_xlabel("ms")
         ax2.set_ylabel("Frequency")
-        ax2.set_title("Latency Distribution (Mock)")
         ax2.legend()
-        ax2.grid(True, alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig2, clear_figure=True)
+        ax2.grid(True, alpha=0.2)
+        st.pyplot(fig2)
     
-    with col2:
+    with c2:
         st.markdown("**Latency Percentiles:**")
-        percentiles = [50, 90, 95, 99]
-        for p in percentiles:
-            val = df["latency_ms"].quantile(p/100)
-            st.metric(f"P{p}", f"{val:.0f} ms")
+        for p in [50, 90, 95, 99]:
+            st.metric(f"P{p}", f"{df['latency_ms'].quantile(p/100):.0f} ms")
 
 with tab3:
-    st.subheader("📊 Performance & Cost Breakdown")
+    st.subheader("Token Usage & Cost Efficiency")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Token Usage:**")
+    left, right = st.columns(2)
+    with left:
         st.metric("Avg Input Tokens", f"{df['in_tokens'].mean():.0f}")
         st.metric("Avg Output Tokens", f"{df['out_tokens'].mean():.0f}")
-        st.metric("Total Tokens/Day", f"{(avg_in_tokens + avg_out_tokens) * rpm * 60 * hours_per_day:,.0f}")
+        total_toks = (in_tok + out_tok) * rpm * 60 * hours
+        st.metric("Est. Total Tokens/Day", f"{total_toks:,.0f}")
     
-    with col2:
-        st.markdown("**Cost Efficiency:**")
-        tokens_per_dollar = (avg_in_tokens + avg_out_tokens) / cost_per_req
-        st.metric("Tokens per $1", f"{tokens_per_dollar:,.0f}")
-        st.metric("Cost per 1M tokens", f"${cost_per_req * 1000000 / (avg_in_tokens + avg_out_tokens):.2f}")
+    with right:
+        toks_per_dollar = (in_tok + out_tok) / req_cost
+        st.metric("Tokens per $1", f"{toks_per_dollar:,.0f}")
+        st.metric("Cost per 1M tokens", f"${req_cost * 1_000_000 / (in_tok + out_tok):.2f}")
         
-        if cost_per_30d > 1000:
-            st.warning("💸 High monthly cost! Consider optimizing.")
-        elif cost_per_30d < 100:
-            st.success("💚 Very cost-effective setup!")
+        if cost_month > 1000:
+            st.warning("💸 Might wanna dial this back — that’s $$$")
+        elif cost_month < 100:
+            st.success("🟢 Cost setup is very reasonable.")
         else:
-            st.info("📊 Moderate monthly spending.")
+            st.info("🟡 Not bad — probably worth tracking.")
 
 with tab4:
-    st.subheader("🔍 Detailed Simulation Data")
+    st.subheader("Simulation Data (Details)")
     
-    # Summary stats
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Requests", len(df))
-    col2.metric("Failed Requests", len(df[df["latency_ms"] > 10000]))  # mock failure threshold
-    col3.metric("Avg Cost/Request", f"${df['cost_usd'].mean():.4f}")
+    a, b, c = st.columns(3)
+    a.metric("Total Requests", f"{len(df)}")
+    b.metric("Failed Requests", f"{len(df[df['latency_ms'] > 10000])}")  # arbitrarily say >10s is a fail
+    c.metric("Avg Cost/Req", f"${df['cost_usd'].mean():.4f}")
     
-    # Data table with formatting
-    display_df = df.copy()
-    display_df = display_df.round({
+    shown_df = df.copy()
+    shown_df = shown_df.round({
         'latency_ms': 0,
-        'in_tokens': 0, 
+        'in_tokens': 0,
         'out_tokens': 0,
         'cost_usd': 4
     })
     
     st.dataframe(
-        display_df.style.format({
+        shown_df.style.format({
             'latency_ms': '{:.0f} ms',
             'in_tokens': '{:.0f}',
             'out_tokens': '{:.0f}',
@@ -200,25 +207,22 @@ with tab4:
         use_container_width=True,
         height=300
     )
-    
-    # Download options
+
     csv = df.to_csv(index=False)
     st.download_button(
-        "📥 Download Full Dataset (CSV)",
+        "📥 Download CSV",
         csv.encode('utf-8'),
-        f"llm_cost_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-        "text/csv",
-        key='download-csv'
+        f"llm_mock_data_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        "text/csv"
     )
 
-# -------------------------
-# FOOTER
-# -------------------------
+# ---------------------
+# Footer
+# ---------------------
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p><strong>⚠️ DISCLAIMER:</strong> This dashboard uses <strong>FICTIONAL</strong> pricing and latency data for demonstration only.<br>
-    Do NOT use these numbers for real budgeting or production planning.</p>
-    <p>Built with Streamlit • Mock data simulation • Educational purposes</p>
+<div style='text-align: center; color: gray;'>
+    ⚠️ This is totally fictional. Nothing here should guide your infra spend.<br>
+    Made for fun, demo, and dashboard experimentation.
 </div>
 """, unsafe_allow_html=True)
