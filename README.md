@@ -9,45 +9,43 @@ Features
 
 Interactive Cost Analysis
 
-
-Cost projections based on total costs per request, daily and monthly cost
-Support for multiple mock LLM models (GPT-4, Claude, Llama, and others)
-Dynamic pricing based on the number of input/output tokens used
-Future cost projection based on daily usage patterns
+- Cost projections based on total costs per request, daily and monthly cost
+- Support for multiple mock LLM models (GPT-4, Claude, Llama, and others)
+- Dynamic pricing based on the number of input/output tokens used
+- Future cost projection based on daily usage patterns
 
 Latency Performance Simulation
 
 
-A realistic distribution of potential latency with a configurable level of jitter
-Experience the effects of queue pressure depending upon request rate
-Breakdown of latency performance into percentiles (P50, P90-P95-P99)
-Timing outliers that simulate real-world spikes in latency
+- A realistic distribution of potential latency with a configurable level of jitter
+- Experience the effects of queue pressure depending upon request rate
+- Breakdown of latency performance into percentiles (P50, P90-P95-P99)
+- Timing outliers that simulate real-world spikes in latency
 
 Configurable Parameters
 
-
-Requests per minute (1-600 RPM)
-Average number of input/output tokens per request
-Total hours of use on a daily basis
-Range for latency jitter and controlling total sample size
+- Requests per minute (1-600 RPM)
+- Average number of input/output tokens per request
+- Total hours of use on a daily basis
+- Range for latency jitter and controlling total sample size
 
 
 Rich Visualizations
 
 
-Cost projected over time with usage patterns
-Latency distribution histogram with percentile lines / markers
-Performance metrics and efficiency calculations
-Ability to export simulation data (CSV)
+- Cost projected over time with usage patterns
+- Latency distribution histogram with percentile lines / markers
+- Performance metrics and efficiency calculations
+- Ability to export simulation data (CSV)
 
 
 Technical Features
 
 
-Built with Streamlit to create responsive web-based user interface
-Used NumPy/Pandas for fast processing of data
-Created Matplotlib visualizations to a publication-level of formatting
-Used professional looking metrics cards and tabs.
+- Built with Streamlit to create responsive web-based user interface
+- Used NumPy/Pandas for fast processing of data
+- Created Matplotlib visualizations to a publication-level of formatting
+- Used professional looking metrics cards and tabs.
 
 
 Getting Started
