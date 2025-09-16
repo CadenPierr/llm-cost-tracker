@@ -1,4 +1,5 @@
 LLM Cost & Latency Tracker (Mock)
+
 A full-fledged Streamlit App simulating LLM cost analysis and latency performance with real-world mock data. Good to understand the cost optimization and performance trade-offs in LLM applications.
 
 ## **[LIVE DEMO] (https://llm-cost-tracker-qjru45xwrgp6tkz7vbmjpw.streamlit.app/)**
