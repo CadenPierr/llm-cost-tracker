@@ -48,18 +48,6 @@ Technical Features
 - Used professional looking metrics cards and tabs.
 
 
-Getting Started
-Option 1: Streamlit Cloud (Recommended)
-
-
-Fork Repository
-Navigate to share.streamlit.io
-Connect your GitHub and deploy!
-
-Option 2: Local Development
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/llm-cost-tracker.git
-cd llm-cost-tracker
 
 # Install dependencies
 pip install -r requirements.txt
